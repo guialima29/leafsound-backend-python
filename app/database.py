@@ -1,15 +1,11 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from app.notes.model import Base
+from variables import database_connection
 
-DATABASE_URL = "postgresql://postgres:postgres@localhost/leafsound"
+DATABASE_URL = database_connection
 
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False}
-    )
-
+engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
     autocommit=False, 
@@ -17,7 +13,7 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-Base.metadata.create_all(bind=engine)
+Base = declarative_base()
 
 def get_db():
     db = SessionLocal()
