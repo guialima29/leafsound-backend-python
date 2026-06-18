@@ -1,16 +1,17 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID
 
-Base = declarative_base()
+from database import Base
+
 
 class Workspace(Base):
     __tablename__ = 'workspaces'
 
     workspace_id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    workspace_name = Column(String, unique=True)
+    workspace_name = Column(String, nullable=False)
 
     user_id = Column(
-        Integer, 
-        ForeignKey('users.user_id'), 
+        UUID(as_uuid=True),
+        ForeignKey('users.user_id'),
         nullable=False
-        ) 
+    )
