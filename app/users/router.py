@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from database import get_db
+from rate_limit import limiter
 from . import schema, services
 from .model import User
 
@@ -10,7 +11,8 @@ auth_router = APIRouter()
 
 
 @auth_router.post("/google", response_model=schema.TokenResponse)
-def login_with_google(data: schema.GoogleLoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login_with_google(request: Request, data: schema.GoogleLoginRequest, db: Session = Depends(get_db)):
     access_token, user = services.login_with_google(db, data.id_token)
     return {
         "access_token": access_token,
@@ -20,7 +22,8 @@ def login_with_google(data: schema.GoogleLoginRequest, db: Session = Depends(get
 
 
 @auth_router.post("/dev-login", response_model=schema.TokenResponse)
-def login_for_development(data: schema.DevLoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login_for_development(request: Request, data: schema.DevLoginRequest, db: Session = Depends(get_db)):
     access_token, user = services.login_for_development(db, data)
     return {
         "access_token": access_token,

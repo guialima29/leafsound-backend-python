@@ -51,13 +51,20 @@ Campos futuros:
 
 ## Checklist de implementacao
 
-- [ ] Criar pacote `app/feedback`.
-- [ ] Criar model com FK opcional para usuario.
-- [ ] Criar schemas.
-- [ ] Criar service de envio.
-- [ ] Registrar router em `app/main.py`.
-- [ ] Criar listagem do proprio usuario.
+- [x] Criar pacote `app/feedback`.
+- [x] Criar model com FK para usuario (obrigatoria, sem envio anonimo no MVP).
+- [x] Criar schemas.
+- [x] Criar service de envio.
+- [x] Registrar router em `app/main.py`.
+- [x] Criar listagem do proprio usuario.
 - [ ] Planejar controle admin depois.
+
+## Implementado agora
+
+- `POST /feedback/`: cria feedback (`category`, `message`, `rating` opcional) para o usuario autenticado. `status` inicia como `new`.
+- `GET /feedback/me`: lista os feedbacks enviados pelo usuario autenticado, mais recentes primeiro.
+- `category` e `status` sao enums Postgres (`feedback_category`, `feedback_status`) armazenados pelo `.value` (minusculo).
+- Rotas de listagem geral (`GET /feedback`) e atualizacao administrativa (`PATCH /feedback/{feedback_id}`) ficam para uma fase futura de admin.
 
 ## Criterios de aceite
 

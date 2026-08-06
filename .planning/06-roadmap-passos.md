@@ -55,10 +55,10 @@ Objetivo: entregar CRUD completo de notas.
 
 Objetivo: coletar opinioes e ideias dos usuarios.
 
-- [ ] Criar modulo `feedback`.
-- [ ] Criar envio autenticado.
-- [ ] Criar listagem do proprio usuario.
-- [ ] Preparar status administrativo, se necessario.
+- [x] Criar modulo `feedback`.
+- [x] Criar envio autenticado.
+- [x] Criar listagem do proprio usuario.
+- [x] Preparar status administrativo, se necessario.
 
 ## Fora do escopo atual
 

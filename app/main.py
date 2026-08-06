@@ -1,14 +1,20 @@
 from fastapi import FastAPI
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from users.router import auth_router, router as user_router
 from workspaces.router import router as workspace_router
 from notes.router import router as notes_router, workspace_notes_router
+from feedback.router import router as feedback_router
+from rate_limit import limiter
 
 from database import Base, engine
 
 from users import model as user_model
 from workspaces import model as workspace_model
 from notes import model as note_model
+from feedback import model as feedback_model
 
 Base.metadata.create_all(bind=engine)
 
@@ -32,6 +38,10 @@ tags_metadata = [
     {
         "name": "notes",
         "description": "Create, read, update and delete notes inside user workspaces."
+    },
+    {
+        "name": "feedback",
+        "description": "Send and list feedback from the authenticated user."
     }
 ]
 
@@ -41,6 +51,10 @@ app = FastAPI(
     version="0.1.0",
     openapi_tags=tags_metadata,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(
     user_router, prefix="/users", tags=["users"]
@@ -60,6 +74,10 @@ app.include_router(
 
 app.include_router(
     notes_router, prefix="/notes", tags=["notes"]
+)
+
+app.include_router(
+    feedback_router, prefix="/feedback", tags=["feedback"]
 )
 
 @app.get("/", tags=["root"])

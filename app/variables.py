@@ -3,12 +3,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-variables = {
-    "DB_HOST": os.getenv("DB_HOST"),
-    "DB_PORT": os.getenv("DB_PORT"),
-    "DB_NAME": os.getenv("DB_NAME"),
-    "DB_USER": os.getenv("DB_USER"),
-    "DB_PASS": os.getenv("DB_PASS"),
-}
+REQUIRED_DB_VARS = ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASS")
 
-database_connection = f"postgresql://{variables['DB_USER']}:{variables['DB_PASS']}@{variables['DB_HOST']}:{variables['DB_PORT']}/{variables['DB_NAME']}"
+variables = {name: os.getenv(name) for name in REQUIRED_DB_VARS}
+
+missing = [name for name in REQUIRED_DB_VARS if not variables[name]]
+if missing:
+    raise RuntimeError(
+        f"Missing required environment variable(s): {', '.join(missing)}. "
+        "Copy .env.example to .env and fill in the database settings."
+    )
+
+database_connection = (
+    f"postgresql://{variables['DB_USER']}:{variables['DB_PASS']}"
+    f"@{variables['DB_HOST']}:{variables['DB_PORT']}/{variables['DB_NAME']}"
+)

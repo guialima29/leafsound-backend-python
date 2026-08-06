@@ -1,100 +1,72 @@
-import base64
-import hashlib
-import hmac
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import httpx
+import jwt
 from fastapi import HTTPException, status
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "leafsound-dev-secret")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET_KEY environment variable must be set. "
+        "Copy .env.example to .env and set a unique secret."
+    )
+
+JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_ISSUERS = ("accounts.google.com", "https://accounts.google.com")
 
-
-def _base64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("utf-8")
-
-
-def _base64url_decode(data: str) -> bytes:
-    padding = "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(data + padding)
+_google_auth_request = google_requests.Request()
 
 
 def create_access_token(user_id: str) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {"sub": user_id, "exp": int(expires_at.timestamp())}
-
-    header_part = _base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    payload_part = _base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    message = f"{header_part}.{payload_part}".encode("utf-8")
-    signature = hmac.new(JWT_SECRET_KEY.encode("utf-8"), message, hashlib.sha256).digest()
-
-    return f"{header_part}.{payload_part}.{_base64url_encode(signature)}"
+    payload = {"sub": user_id, "exp": expires_at}
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
     try:
-        header_part, payload_part, signature_part = token.split(".")
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-        ) from exc
-
-    message = f"{header_part}.{payload_part}".encode("utf-8")
-    expected_signature = hmac.new(
-        JWT_SECRET_KEY.encode("utf-8"),
-        message,
-        hashlib.sha256,
-    ).digest()
-
-    if not hmac.compare_digest(_base64url_encode(expected_signature), signature_part):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-        )
-
-    payload = json.loads(_base64url_decode(payload_part))
-    if int(payload.get("exp", 0)) < int(datetime.now(timezone.utc).timestamp()):
+        return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Expired authentication token",
-        )
-
-    return payload
+        ) from exc
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        ) from exc
 
 
 def verify_google_token(id_token: str) -> dict[str, Any]:
-    try:
-        response = httpx.get(
-            "https://oauth2.googleapis.com/tokeninfo",
-            params={"id_token": id_token},
-            timeout=10,
-        )
-    except httpx.HTTPError as exc:
+    if not GOOGLE_CLIENT_ID:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unable to validate Google token",
-        ) from exc
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google login is not configured",
+        )
 
-    if response.status_code != status.HTTP_200_OK:
+    try:
+        google_data = google_id_token.verify_oauth2_token(
+            id_token, _google_auth_request, GOOGLE_CLIENT_ID
+        )
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google token",
-        )
+        ) from exc
 
-    google_data = response.json()
-    if GOOGLE_CLIENT_ID and google_data.get("aud") != GOOGLE_CLIENT_ID:
+    if google_data.get("iss") not in GOOGLE_ISSUERS:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google token audience does not match this API",
+            detail="Invalid Google token issuer",
         )
 
-    if google_data.get("email_verified") != "true":
+    if not google_data.get("email_verified"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google account email is not verified",
